@@ -8,6 +8,9 @@ pub fn compile(graph: &FunctionGraph, seed: u32) -> Result<Program, String> {
     }
 
     let output = graph.output.ok_or("function has no result node")?;
+    // Variables only change through `set`; registers are cleared for every run. Without a `set`, a `get_*`
+    // returns the same value for the whole run, so it (and everything computed from it) can be cached.
+    let writes_variables = graph.nodes.iter().any(|node| node.op == "set");
     let mut nodes = BTreeMap::new();
     for node in &graph.nodes {
         if nodes.insert(node.id, node).is_some() {
@@ -48,7 +51,7 @@ pub fn compile(graph: &FunctionGraph, seed: u32) -> Result<Program, String> {
         let inferred = super::inferred_type::inferred_type(&node.op, value.as_ref(), input_type);
         let type_code = if node.type_code == 0 { inferred } else { node.type_code };
         let pure = !matches!(node.op.as_str(), "set" | "sequence" | "while" | "rand" | "isdefined")
-            && !node.op.starts_with("get_")
+            && (!writes_variables || !node.op.starts_with("get_"))
             && inputs.iter().all(|index| instructions.get(*index).is_some_and(|instruction| instruction.pure));
         indices.insert(id, instructions.len());
         instructions.push(Instruction { id, definition, inputs, value, type_code, pure });

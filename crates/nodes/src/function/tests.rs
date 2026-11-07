@@ -164,6 +164,20 @@ fn deep_graphs_shared_inputs_and_cycles_do_not_recurse() {
 }
 
 #[test]
+fn shared_values_read_from_variables_are_cached() {
+    // Issue #148: values derived from a `get_*` (such as `$pos` in a pixel processor) were never cached,
+    // so each extra reference re-evaluated the whole subtree and 20 doublings hit the step budget.
+    let mut graph = FunctionGraph::default();
+    let mut previous = graph.add("get_float1", &[], Some(Value::Text("x".into())));
+    for _ in 0..30 {
+        previous = graph.add("add", &[previous, previous], None);
+    }
+    graph.output = Some(previous);
+    let variables = BTreeMap::from([("x".to_string(), Value::Float(1.0))]);
+    assert_eq!(evaluate(&graph, &variables).unwrap(), Value::Float(1_073_741_824.0));
+}
+
+#[test]
 fn pixel_assignments_are_local_and_match_exported_evaluation() {
     let mut graph = FunctionGraph::default();
     let current = graph.add("get_float1", &[], Some(Value::Text("counter".into())));
