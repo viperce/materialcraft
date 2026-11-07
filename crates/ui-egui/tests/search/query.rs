@@ -59,3 +59,12 @@ fn reopening_a_scrolled_search_reveals_first_match() {
     assert!(super::label_position(&h, "Bitmap").is_some(), "selected first result is offscreen after reopening");
     assert_inserted(&mut h, "bitmap");
 }
+#[test]
+fn fuzzy_subsequence_query_selects_and_inserts_matching_node() {
+    let mut h = super::harness();
+    h.event(Event::Text("dblur".into()));
+    h.step();
+    h.run_steps(25);
+    assert!(super::label_position(&h, "Directional Blur").is_some());
+    assert_inserted(&mut h, "directional_blur");
+}

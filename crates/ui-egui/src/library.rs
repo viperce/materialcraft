@@ -110,17 +110,24 @@ fn category_tree(app: &mut MaterialCraftApp, ui: &mut Ui) {
 
 /// Library entries for the current filter: (id, label, category, is a package graph).
 fn entries(app: &MaterialCraftApp) -> Vec<(String, String, &'static str, bool)> {
-    let search = app.ui.library_search.to_ascii_lowercase();
+    let search = app.ui.library_search.trim();
+    let is_searching = !search.is_empty();
     let cat = &app.ui.library_category;
-    let mut out: Vec<(String, String, &'static str, bool)> = Vec::new();
-    if cat == "@package" || !search.is_empty() {
+    let mut out: Vec<(i32, (String, String, &'static str, bool))> = Vec::new();
+    if cat == "@package" || is_searching {
         for (i, g) in app.session.pkg.graphs.iter().enumerate() {
-            if i != app.session.graph && (search.is_empty() || g.name.to_ascii_lowercase().contains(&search)) {
-                out.push((g.name.clone(), g.name.clone(), "This package", true));
+            if i != app.session.graph {
+                let score = if is_searching { crate::fuzzy::fuzzy_score(&g.name, search) } else { Some(0) };
+                if let Some(s) = score {
+                    out.push((s, (g.name.clone(), g.name.clone(), "This package", true)));
+                }
             }
         }
         if cat == "@package" {
-            return out;
+            if is_searching {
+                out.sort_by(|(score_a, (_, label_a, _, _)), (score_b, (_, label_b, _, _))| score_b.cmp(score_a).then_with(|| label_a.cmp(label_b)));
+            }
+            return out.into_iter().map(|(_, item)| item).collect();
         }
     }
     for d in materialcraft_engine::nodes::catalog() {
@@ -130,12 +137,15 @@ fn entries(app: &MaterialCraftApp) -> Vec<(String, String, &'static str, bool)> 
         if !(cat.is_empty() || d.category == cat || d.category.starts_with(&format!("{cat}/"))) {
             continue;
         }
-        if !(search.is_empty() || d.label.to_ascii_lowercase().contains(&search) || d.id.contains(&search)) {
-            continue;
+        let score = if is_searching { crate::fuzzy::fuzzy_score(d.label, search).max(crate::fuzzy::fuzzy_score(d.id, search)) } else { Some(0) };
+        if let Some(s) = score {
+            out.push((s, (d.id.to_string(), d.label.to_string(), d.category, false)));
         }
-        out.push((d.id.to_string(), d.label.to_string(), d.category, false));
     }
-    out
+    if is_searching {
+        out.sort_by(|(score_a, (_, label_a, _, _)), (score_b, (_, label_b, _, _))| score_b.cmp(score_a).then_with(|| label_a.cmp(label_b)));
+    }
+    out.into_iter().map(|(_, item)| item).collect()
 }
 
 fn items(app: &mut MaterialCraftApp, ui: &mut Ui) {
