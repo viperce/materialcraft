@@ -9,21 +9,24 @@ pub(super) fn open_search(app: &mut MaterialCraftApp, at: Pos2, connect: Option<
     app.graph.search = Some(NodeSearch { at, text: String::new(), sel: 0, connect, focus: true });
 }
 
-/// Catalog entries matching `text` (label or id contains every word)
+/// Catalog entries matching `text` (fuzzy score across label, id, and category)
 pub(super) fn matches(text: &str) -> Vec<&'static materialcraft_engine::nodes::NodeDefinition> {
-    let words: Vec<String> = text.split_whitespace().map(str::to_ascii_lowercase).collect();
-    let mut v: Vec<_> = materialcraft_engine::nodes::catalog()
-        .iter()
-        .filter(|d| d.id != "graph_instance")
-        .filter(|d| {
-            let hay = format!("{} {} {}", d.label.to_ascii_lowercase(), d.id, d.category.to_ascii_lowercase());
-            words.iter().all(|w| hay.contains(w.as_str()))
+    let text = text.trim();
+    let catalog = materialcraft_engine::nodes::catalog().iter().filter(|d| d.id != "graph_instance");
+    if text.is_empty() {
+        return catalog.collect();
+    }
+    let mut scored: Vec<(i32, &'static materialcraft_engine::nodes::NodeDefinition)> = catalog
+        .filter_map(|d| {
+            let label_score = crate::fuzzy::fuzzy_score(d.label, text);
+            let id_score = crate::fuzzy::fuzzy_score(d.id, text);
+            let cat_score = crate::fuzzy::fuzzy_score(d.category, text).map(|s| s.saturating_sub(20));
+            let score = label_score.max(id_score).max(cat_score)?;
+            Some((score, d))
         })
         .collect();
-    if let Some(w) = words.first() {
-        v.sort_by_key(|d| !d.label.to_ascii_lowercase().starts_with(w.as_str()));
-    }
-    v
+    scored.sort_by(|(score_a, a), (score_b, b)| score_b.cmp(score_a).then_with(|| a.label.cmp(b.label)));
+    scored.into_iter().map(|(_, d)| d).collect()
 }
 
 pub(super) fn show(app: &mut MaterialCraftApp, ui: &mut Ui, cam: &GraphCamera) {
@@ -99,5 +102,48 @@ pub(super) fn show(app: &mut MaterialCraftApp, ui: &mut Ui, cam: &GraphCamera) {
         }
     } else if close || clicked_out {
         app.graph.search = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::matches;
+
+    #[test]
+    fn empty_query_matches_catalog() {
+        let all = matches("");
+        assert!(!all.is_empty());
+        assert_eq!(all[0].id, "bitmap");
+    }
+
+    #[test]
+    fn acronym_and_fuzzy_subsequence_ranks_expected_nodes() {
+        let dblur = matches("dblur");
+        assert!(!dblur.is_empty());
+        assert_eq!(dblur[0].id, "directional_blur");
+
+        let t2d = matches("t2d");
+        assert!(!t2d.is_empty());
+        assert_eq!(t2d[0].id, "transformation");
+
+        let dirwarp = matches("dirwarp");
+        assert!(!dirwarp.is_empty());
+        assert_eq!(dirwarp[0].id, "directional_warp");
+
+        let grayconv = matches("grayconv");
+        assert!(!grayconv.is_empty());
+        assert_eq!(grayconv[0].id, "grayscale_conversion");
+    }
+
+    #[test]
+    fn exact_match_ranks_first() {
+        let list = matches("blur");
+        assert!(!list.is_empty());
+        assert_eq!(list[0].id, "blur");
+    }
+
+    #[test]
+    fn unmatched_query_returns_empty() {
+        assert!(matches("nonexistentnodename12345").is_empty());
     }
 }

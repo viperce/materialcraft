@@ -8,6 +8,7 @@ pub mod docking;
 pub mod explorer;
 pub mod fonts;
 pub mod function;
+pub mod fuzzy;
 pub mod graph;
 mod graph_drag_payload;
 pub mod i18n;
