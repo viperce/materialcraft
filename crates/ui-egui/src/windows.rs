@@ -504,8 +504,8 @@ pub fn function_summary(app: &mut MaterialCraftApp, ui: &mut Ui, node: NodeId, p
     });
 }
 
-/// Extensions File ▸ Open reads: SBS packages, and materials (their source package)
-pub const OPEN_EXTS: &[&str] = &["sbs", MATERIAL_EXT];
+/// Extensions File ▸ Open reads: SBS packages, materials (their source package), and legacy packages
+pub const OPEN_EXTS: &[&str] = &["sbs", MATERIAL_EXT, materialcraft_engine::formats::legacy::LEGACY_PACKAGE_EXT];
 
 /// After a package opened with warnings (an SBS file using nodes MaterialCraft lacks, say), bring the Console forward
 pub fn after_open(app: &mut MaterialCraftApp) {

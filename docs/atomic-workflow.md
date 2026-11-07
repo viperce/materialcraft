@@ -49,7 +49,7 @@ pattern traversal have separate modules. Document types each live in their own f
 
 The saved document is native SBS XML: filters, graph bridges, typed value ports, function nodes,
 pattern nodes, parameters and resources. There is no private package comment or embedded JSON
-document. `.mcraft` read/write support has been removed. Portable `.mcmat` materials now contain
+document. `.mcraft` support is read-only: legacy packages open into the current model and save as native SBS. Portable `.mcmat` materials now contain
 `source.sbs` and use manifest version 2; older archives are rejected.
 
 Function graphs and pattern graphs use iterative traversal, detect cycles and enforce node and

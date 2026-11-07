@@ -158,7 +158,8 @@ while discrete edits always receive their own undo entry.
 SBS is the project format. The codec writes native filters, ports, parameters, function graphs,
 pattern graphs and resources directly, without a private payload. Unsupported imports produce
 warnings; unknown nodes remain placeholders. Library reference loading is not part of the current
-primitive workflow. `.mcraft` is no longer supported.
+primitive workflow. Legacy `.mcraft` packages open read-only into the current model; saving is
+native SBS.
 
 The SBS `read` and `write` modules expose codec entry points. `SbsReader` and `SbsWriter` own
 serialization state; focused helpers handle values, functions, patterns and canvas annotations.

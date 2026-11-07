@@ -479,3 +479,39 @@ fn undo_to_unmodified_state_clears_modified_flag() {
     run(&mut s, "edit.redo", json!({}));
     assert!(s.modified, "redoing to the modified state should set the modified flag");
 }
+
+/// A legacy `.mcraft` package opens read-only into the current model, then saves as native SBS (#138)
+#[test]
+fn a_legacy_mcraft_package_opens_and_saves_as_sbs() {
+    let directory = TempDir::new("legacy-mcraft");
+    let package_json = r#"{
+  "name": "sticker", "version": 1,
+  "graphs": [{
+    "name": "sticker", "kind": "material", "size": [9, 9], "nextId": 3,
+    "nodes": [
+      { "id": 1, "def": "uniform", "pos": [0.0, 0.0], "params": { "color": { "t": "color", "v": [1.0, 0.0, 0.0, 1.0] } }, "base": { "sizeMode": "relativeToInput", "size": [0, 0], "format": "inherit", "seed": 0, "tiling": [true, true] } },
+      { "id": 2, "def": "output", "pos": [300.0, 0.0], "params": {} }
+    ],
+    "connections": [{ "from": 1, "fromPort": "output", "to": 2, "toPort": "input0" }],
+    "exposed": [], "frames": [], "comments": [], "pins": [], "inputs": {}, "presets": [], "attributes": {}, "seed": 0, "format": "inherit"
+  }],
+  "resources": []
+}"#;
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default();
+    z.start_file("package.json", opts).unwrap();
+    std::io::Write::write_all(&mut z, package_json.as_bytes()).unwrap();
+    let bytes = z.finish().unwrap().into_inner();
+    let legacy = directory.file("sticker.mcraft");
+    std::fs::write(&legacy, bytes).unwrap();
+
+    let mut s = sample_session();
+    let opened = run(&mut s, "file.open", json!({"path": legacy}));
+    assert_eq!(opened["path"], json!(null), "a legacy package saves under a new name");
+    assert_eq!(s.pkg.graphs[0].nodes.len(), 2);
+    assert!(s.load_warnings.iter().any(|w| w.contains(".mcraft")), "{:?}", s.load_warnings);
+
+    let saved = run(&mut s, "file.save", json!({"path": directory.file("sticker")}))["path"].as_str().unwrap().to_string();
+    run(&mut s, "file.open", json!({"path": saved}));
+    assert_eq!(s.pkg.graphs[0].nodes.len(), 2);
+}

@@ -138,6 +138,16 @@ pub fn open_bytes_linked(session: &mut Session, bytes: &[u8], name: Option<Strin
         return Ok(());
     }
 
+    if materialcraft_formats::legacy::is_legacy_package(bytes) {
+        let pkg = materialcraft_formats::legacy::read_legacy_package(bytes)?;
+        replace_package(session, pkg, None);
+        // The older format has no writer: the document saves as native SBS under a new name
+        let warning = "this package was saved by an older MaterialCraft in the .mcraft format; it opens as-is and saves as native SBS".to_string();
+        session.warn(warning.clone());
+        session.load_warnings = vec![warning];
+        return Ok(());
+    }
+
     let read = materialcraft_formats::sbs::read_sbs(bytes, name.as_deref().unwrap_or(""), linked)?;
     let path = if read.warnings.is_empty() { name } else { None };
     replace_package(session, read.pkg, path);
