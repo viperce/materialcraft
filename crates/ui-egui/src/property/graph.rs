@@ -130,6 +130,12 @@ pub(super) fn show(app: &mut MaterialCraftApp, ui: &mut Ui) {
     });
 
     for (id, parameters) in commands {
+        #[cfg(not(target_arch = "wasm32"))]
+        if id == crate::picker::PICK_IMAGE {
+            let tag = format!("{}:{}", crate::picker::PICK_IMAGE, parameters["identifier"].as_str().unwrap_or_default());
+            app.picker.ask(tag, crate::picker::Request::open("Images", materialcraft_engine::formats::IMAGE_EXTENSIONS), ui.ctx());
+            continue;
+        }
         app.run(id, parameters);
     }
 }
@@ -157,10 +163,9 @@ fn input_previews(ui: &mut Ui, graph: &Graph, resources: &[Resource], emit: &mut
                     }
                 });
                 #[cfg(not(target_arch = "wasm32"))]
-                if crate::widgets::icon_button(ui, icon::FOLDER_OPEN, tr("Pick an image file (a mesh map baked in TextureCraft)"), false, 18.0).clicked()
-                    && let Some(path) = rfd::FileDialog::new().add_filter("Images", materialcraft_engine::formats::IMAGE_EXTENSIONS).pick_file()
-                {
-                    emit("graph.input.bind", json!({"identifier": id, "path": path.display().to_string()}));
+                if crate::widgets::icon_button(ui, icon::FOLDER_OPEN, tr("Pick an image file (a mesh map baked in TextureCraft)"), false, 18.0).clicked() {
+                    // not a command: `show` asks for the file once the graph is no longer borrowed
+                    emit(crate::picker::PICK_IMAGE, json!({"identifier": id}));
                 }
             });
         }

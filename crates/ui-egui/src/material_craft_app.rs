@@ -33,6 +33,9 @@ pub struct MaterialCraftApp {
     /// The last status message (bottom left)
     pub status: String,
     pub(crate) pending_load: Option<(String, Vec<u8>)>,
+    /// The native file dialog that is open, and what it picked ([`crate::picker`])
+    #[cfg(not(target_arch = "wasm32"))]
+    pub picker: crate::picker::Picker,
     pub(crate) quit_confirmed: bool,
     last_time: f64,
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
@@ -80,6 +83,8 @@ impl MaterialCraftApp {
             ui_ms: 0.0,
             status: String::new(),
             pending_load: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            picker: crate::picker::Picker::default(),
             quit_confirmed: false,
             last_time: 0.0,
             next_autosave,
@@ -236,6 +241,13 @@ impl MaterialCraftApp {
             theme::install(ctx);
             ctx.request_repaint();
             return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.picker.poll();
+            if let Some((tag, path)) = self.picker.take() {
+                crate::windows::picked(self, &tag, &path);
+            }
         }
         i18n::set_language(&self.ui.prefs.language);
         self.fonts.update(ctx, &self.ui.prefs.language, self.ui.windows.preferences);

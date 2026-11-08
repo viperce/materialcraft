@@ -179,10 +179,8 @@ fn export(app: &mut MaterialCraftApp, ctx: &egui::Context) {
             let r = ui.add(egui::TextEdit::singleline(&mut app.ui.export_dir).desired_width(280.0));
             crate::widgets::name(&r, egui::Role::TextInput, "Folder");
             #[cfg(not(target_arch = "wasm32"))]
-            if ui.button(icon::FOLDER_OPEN).clicked()
-                && let Some(d) = rfd::FileDialog::new().pick_folder()
-            {
-                app.ui.export_dir = d.display().to_string();
+            if ui.button(icon::FOLDER_OPEN).clicked() {
+                app.picker.ask("exportDir", crate::picker::Request::folder(), ui.ctx());
             }
         });
         crate::widgets::combo(ui, tr("Format"), app.ui.export_format.to_uppercase(), |ui| {
@@ -516,17 +514,46 @@ pub fn after_open(app: &mut MaterialCraftApp) {
     }
 }
 
+/// What the file dialog `tag` ([`crate::picker::Picker::ask`]) picked.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn picked(app: &mut MaterialCraftApp, tag: &str, path: &std::path::Path) {
+    let shown = path.display().to_string();
+    match tag {
+        "open" => open_path(app, &shown),
+        "saveAs" => {
+            let path = materialcraft_engine::file_cmds::package_path(&shown);
+            if app.run("file.save", json!({"path": path})).is_some() {
+                app.ui.add_recent(&path);
+                app.toast(format!("{} {path}", tr("Saved")), false);
+            }
+        }
+        "exportMaterial" => {
+            if let Some(r) = app.run("file.exportMaterial", json!({"path": shown})) {
+                app.toast(format!("{} {}", tr("Exported"), r["path"].as_str().unwrap_or_default()), false);
+            }
+        }
+        "importBitmap" => crate::graph::import_bitmap_file(app, &shown),
+        "mesh" => {
+            app.run("view.3d.loadMesh", json!({"path": shown}));
+        }
+        "image" => crate::view2d::save_image_to(app, path),
+        "exportDir" => app.ui.export_dir = shown,
+        other => {
+            if let Some(identifier) = other.strip_prefix(&format!("{}:", crate::picker::PICK_IMAGE)) {
+                app.run("graph.input.bind", json!({"identifier": identifier, "path": shown}));
+            }
+        }
+    }
+}
+
 /// File menu actions that need a file dialog. Returns true when handled
 pub fn file_action(app: &mut MaterialCraftApp, ctx: &egui::Context, id: &str) -> bool {
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = ctx;
-    #[cfg(not(target_arch = "wasm32"))]
     {
+        use crate::picker::Request;
         match id {
             "file.open" => {
-                if let Some(p) = rfd::FileDialog::new().add_filter("SBS or MaterialCraft package, or material", OPEN_EXTS).pick_file() {
-                    open_path(app, &p.display().to_string());
-                }
+                app.picker.ask("open", Request::open("SBS or MaterialCraft package, or material", OPEN_EXTS), ctx);
                 true
             }
             "file.save" if app.session.path.is_some() => {
@@ -539,13 +566,7 @@ pub fn file_action(app: &mut MaterialCraftApp, ctx: &egui::Context, id: &str) ->
             }
             "file.save" | "file.saveAs" => {
                 let name = format!("{}.sbs", materialcraft_engine::formats::safe_file_name(&app.session.pkg.name));
-                if let Some(p) = rfd::FileDialog::new().set_file_name(name).add_filter("SBS package", &["sbs"]).save_file() {
-                    let path = materialcraft_engine::file_cmds::package_path(&p.display().to_string());
-                    if app.run("file.save", json!({"path": path})).is_some() {
-                        app.ui.add_recent(&path);
-                        app.toast(format!("{} {path}", tr("Saved")), false);
-                    }
-                }
+                app.picker.ask("saveAs", Request::save(name, vec![("SBS package", vec!["sbs"])]), ctx);
                 true
             }
             "file.exportMaterial" => {
@@ -553,11 +574,7 @@ pub fn file_action(app: &mut MaterialCraftApp, ctx: &egui::Context, id: &str) ->
                     "{}.{MATERIAL_EXT}",
                     materialcraft_engine::formats::safe_file_name(&app.session.graph().map(|g| g.name.clone()).unwrap_or_default())
                 );
-                if let Some(p) = rfd::FileDialog::new().set_file_name(name).add_filter("MaterialCraft material", &[MATERIAL_EXT]).save_file()
-                    && let Some(r) = app.run("file.exportMaterial", json!({"path": p.display().to_string()}))
-                {
-                    app.toast(format!("{} {}", tr("Exported"), r["path"].as_str().unwrap_or_default()), false);
-                }
+                app.picker.ask("exportMaterial", Request::save(name, vec![("MaterialCraft material", vec![MATERIAL_EXT])]), ctx);
                 true
             }
             "file.sendToTextureCraft" => {
@@ -567,9 +584,7 @@ pub fn file_action(app: &mut MaterialCraftApp, ctx: &egui::Context, id: &str) ->
                 true
             }
             "file.importBitmap" => {
-                if let Some(path) = rfd::FileDialog::new().add_filter("Images", materialcraft_engine::formats::IMAGE_EXTENSIONS).pick_file() {
-                    crate::graph::import_bitmap_file(app, &path.display().to_string());
-                }
+                app.picker.ask("importBitmap", Request::open("Images", materialcraft_engine::formats::IMAGE_EXTENSIONS), ctx);
                 true
             }
             _ => false,

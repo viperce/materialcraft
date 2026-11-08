@@ -33,6 +33,8 @@ pub mod windows;
 
 mod material_craft_app;
 pub mod pattern;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod picker;
 mod toast;
 mod user_directory;
 mod value_editor;

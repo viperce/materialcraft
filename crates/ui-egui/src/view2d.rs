@@ -81,7 +81,7 @@ pub fn show(app: &mut MaterialCraftApp, ui: &mut Ui) {
             }
             #[cfg(not(target_arch = "wasm32"))]
             if crate::widgets::icon_button(ui, icon::DOWNLOAD_SIMPLE, tr("Save image..."), false, 20.0).clicked() {
-                save_image(app);
+                save_image(app, ui.ctx());
             }
         });
     });
@@ -234,21 +234,20 @@ fn draw_histogram(st: &mut View2dState, p: &egui::Painter, rect: Rect, key: u64,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn save_image(app: &mut MaterialCraftApp) {
-    let Some((id, img)) = app.session.view2d_image().map(|(id, i)| (id, i.clone())) else { return };
+fn save_image(app: &mut MaterialCraftApp, ctx: &egui::Context) {
+    let Some((id, _)) = app.session.view2d_image() else { return };
     let name = app.session.graph().ok().and_then(|g| g.node(id).ok().map(crate::graph::node_label)).unwrap_or_else(|| "image".into());
-    let Some(path) = rfd::FileDialog::new()
-        .set_file_name(format!("{name}.png"))
-        .add_filter("PNG", &["png"])
-        .add_filter("OpenEXR", &["exr"])
-        .add_filter("TGA", &["tga"])
-        .save_file()
-    else {
-        return;
-    };
+    let filters = vec![("PNG", vec!["png"]), ("OpenEXR", vec!["exr"]), ("TGA", vec!["tga"])];
+    app.picker.ask("image", crate::picker::Request::save(format!("{name}.png"), filters), ctx);
+}
+
+/// Writes the 2D view's image to `path`, the dialog's answer.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn save_image_to(app: &mut MaterialCraftApp, path: &std::path::Path) {
+    let Some(img) = app.session.view2d_image().map(|(_, i)| i.clone()) else { return };
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png").to_ascii_lowercase();
     let depth = if ext == "exr" { materialcraft_engine::formats::Depth::F32 } else { materialcraft_engine::formats::Depth::U16 };
-    let result = materialcraft_engine::formats::encode(&img, &ext, depth, !img.is_gray()).and_then(|b| materialcraft_engine::formats::write_atomic(&path, &b));
+    let result = materialcraft_engine::formats::encode(&img, &ext, depth, !img.is_gray()).and_then(|b| materialcraft_engine::formats::write_atomic(path, &b));
     match result {
         Ok(()) => app.toast(format!("{} {}", tr("Saved"), path.display()), false),
         Err(e) => app.toast(e.to_string(), true),

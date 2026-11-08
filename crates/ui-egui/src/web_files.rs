@@ -39,10 +39,7 @@ fn mesh(app: &mut MaterialCraftApp, name: &str, bytes: &[u8]) {
 pub fn load_mesh(app: &mut MaterialCraftApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = ctx;
-        if let Some(p) = rfd::FileDialog::new().add_filter("Meshes", materialcraft_engine::formats::mesh::MESH_EXTENSIONS).pick_file() {
-            app.run("view.3d.loadMesh", serde_json::json!({"path": p.display().to_string()}));
-        }
+        app.picker.ask("mesh", crate::picker::Request::open("Meshes", materialcraft_engine::formats::mesh::MESH_EXTENSIONS), ctx);
     }
     #[cfg(target_arch = "wasm32")]
     {

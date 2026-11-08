@@ -28,6 +28,10 @@ rfd = { workspace = true }
 # Floating panels open as OS windows.
 craft-ui = { workspace = true, features = ["native-windows"] }
 
+# macOS file dialogs are sheets (picker.rs): waiting for their answer. MIT OR Apache-2.0, already in the build through eframe.
+[target.'cfg(target_os = "macos")'.dependencies]
+pollster = "1"
+
 # Browser file I/O (web_files.rs): async pickers and Blob downloads.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 rfd = { workspace = true }
