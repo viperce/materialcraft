@@ -312,6 +312,50 @@ mod tests {
         assert!(!base.parent().unwrap().join("m.mcmat").exists());
     }
 
+    /// Every sub-schema must be a JSON object. Claude Desktop's proxy rejects a boolean schema
+    /// (`"items": true`) and drops the whole server (issue 146)
+    fn boolean_schema_paths(v: &Value, path: &str, out: &mut Vec<String>) {
+        const SCHEMA_VALUED: [&str; 4] = ["items", "additionalProperties", "not", "contains"];
+        const SCHEMA_ARRAYS: [&str; 4] = ["anyOf", "oneOf", "allOf", "prefixItems"];
+        const SCHEMA_MAPS: [&str; 3] = ["properties", "$defs", "patternProperties"];
+        let Some(obj) = v.as_object() else { return };
+        for key in SCHEMA_VALUED {
+            match obj.get(key) {
+                Some(Value::Bool(_)) => out.push(format!("{path}/{key}")),
+                Some(child) => boolean_schema_paths(child, &format!("{path}/{key}"), out),
+                None => {}
+            }
+        }
+        for key in SCHEMA_ARRAYS {
+            for (i, child) in obj.get(key).and_then(Value::as_array).into_iter().flatten().enumerate() {
+                match child {
+                    Value::Bool(_) => out.push(format!("{path}/{key}/{i}")),
+                    _ => boolean_schema_paths(child, &format!("{path}/{key}/{i}"), out),
+                }
+            }
+        }
+        for key in SCHEMA_MAPS {
+            for (name, child) in obj.get(key).and_then(Value::as_object).into_iter().flatten() {
+                match child {
+                    Value::Bool(_) => out.push(format!("{path}/{key}/{name}")),
+                    _ => boolean_schema_paths(child, &format!("{path}/{key}/{name}"), out),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tool_schemas_contain_no_boolean_sub_schemas() {
+        let tools = MaterialCraftMcp::tool_router().list_all();
+        assert!(!tools.is_empty());
+        let mut found = Vec::new();
+        for tool in &tools {
+            let schema = Value::Object((*tool.input_schema).clone());
+            boolean_schema_paths(&schema, &tool.name, &mut found);
+        }
+        assert!(found.is_empty(), "boolean sub-schemas break Claude Desktop: {found:?}");
+    }
+
     #[test]
     fn oversized_replies_become_errors() {
         let r = ok_json(&json!("x".repeat(crate::budgets::MAX_RESPONSE_BYTES)));
