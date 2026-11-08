@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct Windows {
     pub new_graph: bool,
     pub export: bool,
+    /// The "Save 3D view image" dialog
+    pub view_image: bool,
     pub about: bool,
     pub preferences: bool,
     pub shortcuts: bool,

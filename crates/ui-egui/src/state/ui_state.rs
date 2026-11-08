@@ -28,6 +28,9 @@ pub struct UiState {
     /// Export size in pixels; 0 = the graph's own size
     pub export_size: u32,
     pub export_pattern: String,
+    /// Save 3D view image dialog: width in pixels (0 = as in the view) and high quality
+    pub view_image_width: u32,
+    pub view_image_hq: bool,
     /// Frame the whole graph on the next frame
     #[serde(skip)]
     pub frame_all: bool,
@@ -53,6 +56,8 @@ impl Default for UiState {
             export_depth: 0,
             export_size: 0,
             export_pattern: "$(graph)_$(identifier)".into(),
+            view_image_width: 0,
+            view_image_hq: false,
             frame_all: true,
         }
     }

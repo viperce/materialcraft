@@ -83,6 +83,10 @@ pub fn show(app: &mut MaterialCraftApp, ctx: &egui::Context) {
     if app.ui.windows.export {
         export(app, ctx);
     }
+    crate::view3d::save_image::poll(app);
+    if app.ui.windows.view_image {
+        crate::view3d::save_image::dialog(app, ctx);
+    }
     if app.ui.windows.preferences {
         preferences(app, ctx);
     }
@@ -98,7 +102,7 @@ pub fn show(app: &mut MaterialCraftApp, ctx: &egui::Context) {
     crate::unsaved::show(app, ctx);
 }
 
-fn modal(ctx: &egui::Context, id: &str, title: &str, open: &mut bool, size: egui::Vec2, body: impl FnOnce(&mut Ui)) {
+pub(crate) fn modal(ctx: &egui::Context, id: &str, title: &str, open: &mut bool, size: egui::Vec2, body: impl FnOnce(&mut Ui)) {
     egui::Window::new(title)
         .id(egui::Id::unique(id))
         .open(open)

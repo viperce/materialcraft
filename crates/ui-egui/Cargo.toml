@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 materialcraft-engine = { workspace = true }
 materialcraft-render = { workspace = true }
+rayon = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "persistence"] }
 egui = { workspace = true }
 craft-ui = { workspace = true }

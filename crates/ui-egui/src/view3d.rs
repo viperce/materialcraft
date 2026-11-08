@@ -56,6 +56,8 @@ pub struct View3dState {
     /// The last frame shown (RGBA8, for `view.screenshot`).
     pub shown: Option<(u32, u32, Vec<u8>)>,
     show_env: bool,
+    /// The image being rendered for "Save image..." (see [`save_image`]).
+    save: Option<save_image::SaveJob>,
 }
 
 impl View3dState {
@@ -89,6 +91,7 @@ impl Drop for Job {
 }
 
 mod relief_job;
+pub mod save_image;
 use relief_job::ReliefJob;
 
 pub fn scene_label(app: &MaterialCraftApp) -> String {
@@ -306,6 +309,10 @@ pub fn show(app: &mut MaterialCraftApp, ui: &mut Ui) {
             let a = app.session.view3d.alpha_view;
             if crate::widgets::icon_button(ui, icon::CHECKERBOARD, tr("Show alpha channel"), a, 20.0).clicked() {
                 app.run("view.3d", json!({"alphaView": !a}));
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if crate::widgets::icon_button(ui, icon::DOWNLOAD_SIMPLE, tr("Save image..."), app.ui.windows.view_image, 20.0).clicked() {
+                app.ui.windows.view_image = true;
             }
         });
     });
