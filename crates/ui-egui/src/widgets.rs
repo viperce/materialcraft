@@ -234,13 +234,61 @@ pub fn color_swatch(ui: &mut Ui, id: &str, linear: &mut [f32; 3], width: f32) ->
     let mut changed = false;
     // Open state lives in memory (`toggle_id` above); `from_response` alone shows it always.
     egui::Popup::from_response(&resp).id(popup).open_memory(None).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
-        if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
-            let lin = [c.r(), c.g(), c.b()].map(|v| materialcraft_engine::image::srgb_to_linear(v as f32 / 255.0));
-            *linear = lin;
+        let picked = egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque);
+        let typed = hex_field(ui, popup.with("hex"), &mut c);
+        if picked || typed {
+            *linear = [c.r(), c.g(), c.b()].map(|v| materialcraft_engine::image::srgb_to_linear(v as f32 / 255.0));
             changed = true;
         }
     });
     changed
+}
+
+/// A hex code field below the picker; returns true when a valid typed code changed `color`
+/// The typed text is kept while the field has focus, so a half-typed code is not rewritten
+fn hex_field(ui: &mut Ui, id: egui::Id, color: &mut Color32) -> bool {
+    let mut text = if ui.memory(|m| m.has_focus(id)) { ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| hex_text(*color)) } else { hex_text(*color) };
+
+    ui.horizontal(|ui| {
+        ui.label(tr("Hex"));
+        let response = ui.add(egui::TextEdit::singleline(&mut text).id(id).desired_width(64.0).char_limit(7));
+        if !response.changed() {
+            return false;
+        }
+
+        ui.data_mut(|d| d.insert_temp(id, text.clone()));
+        match parse_hex_color(&text) {
+            Some(parsed) if parsed != *color => {
+                *color = parsed;
+                true
+            }
+            _ => false,
+        }
+    })
+    .inner
+}
+
+/// The `#RRGGBB` code of a color
+fn hex_text(color: Color32) -> String {
+    format!("#{:02X}{:02X}{:02X}", color.r(), color.g(), color.b())
+}
+
+/// Parses `RRGGBB` or `RGB` with an optional leading `#`
+fn parse_hex_color(text: &str) -> Option<Color32> {
+    let digits = text.trim().trim_start_matches('#');
+    if !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let channel = |s: &str| u8::from_str_radix(s, 16).ok();
+    match digits.len() {
+        6 => Some(Color32::from_rgb(channel(&digits[0..2])?, channel(&digits[2..4])?, channel(&digits[4..6])?)),
+        3 => {
+            let doubled = |i: usize| channel(&digits[i..=i]).map(|v| v * 17);
+            Some(Color32::from_rgb(doubled(0)?, doubled(1)?, doubled(2)?))
+        }
+        _ => None,
+    }
 }
 
 /// Panel title row with optional trailing content.
@@ -250,4 +298,31 @@ pub fn panel_header(ui: &mut Ui, title: &str, trailing: impl FnOnce(&mut Ui)) {
         ui.label(crate::theme::caption(title));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), trailing);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_codes_parse_with_or_without_hash_and_shorthand() {
+        assert_eq!(parse_hex_color("#FF8000"), Some(Color32::from_rgb(255, 128, 0)));
+        assert_eq!(parse_hex_color("ff8000"), Some(Color32::from_rgb(255, 128, 0)));
+        assert_eq!(parse_hex_color(" #f80 "), Some(Color32::from_rgb(255, 136, 0)));
+    }
+
+    #[test]
+    fn invalid_hex_codes_are_rejected() {
+        for text in ["", "#", "#12", "#12345", "#1234567", "#GG0000", "#+12345", "#é12345"] {
+            assert_eq!(parse_hex_color(text), None, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn hex_text_round_trips_through_the_parser() {
+        let color = Color32::from_rgb(1, 171, 255);
+
+        assert_eq!(hex_text(color), "#01ABFF");
+        assert_eq!(parse_hex_color(&hex_text(color)), Some(color));
+    }
 }
